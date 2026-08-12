@@ -64,6 +64,7 @@ COR_FUNDO = "#FFFEFA"
 COR_PAINEL = "#FAF6EA"
 COR_VERDE_MUSGO = "#121509"
 COR_VERDE_MUSGO_HOVER = "#080A04"
+COR_MUSGO_VEIL = "rgba(18,21,9,0.20)"
 COR_ROSA_ACENTO = "#C6A9A0"
 COR_ROSA_VEIL = "rgba(198,169,160,0.20)"
 COR_TEXTO_CORPO = "#5A3E3E"
@@ -93,8 +94,7 @@ st.markdown(
         right: -10%;
         width: 40vw;
         height: 40vw;
-        background: {COR_VERDE_MUSGO};
-        opacity: 0.06;
+        background: {COR_MUSGO_VEIL};
         border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
         z-index: 0;
         pointer-events: none;
@@ -138,16 +138,16 @@ st.markdown(
         border-radius: 6px !important;
     }}
 
-    .stButton > button, [data-testid="stLinkButton"] a {{
-        background-color: {COR_VERDE_MUSGO};
-        color: {COR_FUNDO};
-        border: none;
+    .stButton > button, [data-testid="stLinkButton"] a, [data-testid="stFormSubmitButton"] button {{
+        background-color: {COR_VERDE_MUSGO} !important;
+        color: {COR_FUNDO} !important;
+        border: none !important;
         border-radius: 6px;
         font-family: 'Lora', serif;
     }}
-    .stButton > button:hover, [data-testid="stLinkButton"] a:hover {{
-        background-color: {COR_VERDE_MUSGO_HOVER};
-        color: {COR_FUNDO};
+    .stButton > button:hover, [data-testid="stLinkButton"] a:hover, [data-testid="stFormSubmitButton"] button:hover {{
+        background-color: {COR_VERDE_MUSGO_HOVER} !important;
+        color: {COR_FUNDO} !important;
     }}
 
     .entrada-anterior {{
