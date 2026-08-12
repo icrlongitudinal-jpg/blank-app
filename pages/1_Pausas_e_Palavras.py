@@ -1,10 +1,64 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
+import anthropic
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import Client, ClientOptions, create_client
+
+SYSTEM_PROMPT_RELATORIO_SEMANAL = """\
+Você gera um relatório psicológico semanal breve a partir de entradas de \
+diário pessoal de uma usuária. Escreva em português. Não inclua título, \
+saudação, nem nenhum texto fora das três partes abaixo, nesta ordem exata:
+
+1. Padrão observado (lente junguiana, fase intermediária): identifique \
+repetições, temas recorrentes, ou possíveis sombras ou arquétipos que \
+aparecem no que a usuária escreveu ao longo da semana. Use linguagem \
+descritiva, nunca avaliativa — por exemplo "você trouxe X algumas vezes \
+essa semana". Nunca use frases como "isso indica Y" ou qualquer formulação \
+que soe como diagnóstico ou avaliação.
+
+2. Sentido (lente frankliana): conecte o padrão observado a uma pergunta ou \
+direção de propósito. Não ofereça solução pronta — apenas uma reflexão que \
+ajude a pessoa a pensar para onde aquilo aponta.
+
+3. Fecho: uma frase breve de acolhimento, sem prescrição.
+
+Proibido em qualquer parte do texto:
+- Termos clínicos ou de diagnóstico (transtorno, sintoma, quadro de, \
+patologia, ou termos equivalentes)
+- Conceitos junguianos de fase tardia (alquimia, sincronicidade, simbolismo \
+esotérico)
+- Qualquer frase que soe como avaliação profissional
+
+Referência teórica permitida:
+- Jung (sombra, persona, arquétipo, individuação, complexo) é a base \
+principal.
+- Frankl (logoterapia, busca de sentido) é a camada de propósito, usada na \
+parte 2.
+- Freud só pode aparecer como nota pontual e explícita, quando um conceito \
+específico dele for diretamente aplicável (ex: mecanismo de defesa) — nunca \
+como estrutura geral do relatório.
+"""
+
+
+def gerar_relatorio_semanal(entradas: list[dict]) -> str:
+    corpo = "\n\n".join(
+        f"[{datetime.fromisoformat(e['criado_em']).strftime('%d/%m/%Y')}] {e['texto']}"
+        for e in entradas
+    )
+    cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    resposta = cliente_anthropic.messages.create(
+        model="claude-opus-5",
+        max_tokens=4096,
+        thinking={"type": "adaptive"},
+        system=SYSTEM_PROMPT_RELATORIO_SEMANAL,
+        messages=[{"role": "user", "content": f"Entradas da semana:\n\n{corpo}"}],
+    )
+    if resposta.stop_reason == "refusal":
+        raise RuntimeError("O modelo não conseguiu gerar o relatório desta vez.")
+    return next(bloco.text for bloco in resposta.content if bloco.type == "text")
 
 COR_FUNDO = "#FFFEFA"
 COR_PAINEL = "#FAF6EA"
@@ -281,3 +335,28 @@ else:
             f'<div class="entrada-anterior"><div class="entrada-data">{data_formatada}</div>{trecho}</div>',
             unsafe_allow_html=True,
         )
+
+st.markdown("---")
+st.markdown('<p class="titulo-produto" style="font-size:1.3rem;">Relatório da semana</p>', unsafe_allow_html=True)
+
+if "ANTHROPIC_API_KEY" not in st.secrets:
+    st.caption("Configuração de IA ausente. Preencha ANTHROPIC_API_KEY em .streamlit/secrets.toml.")
+else:
+    uma_semana_atras = datetime.now(timezone.utc) - timedelta(days=7)
+    entradas_da_semana = [
+        e for e in resultado.data
+        if datetime.fromisoformat(e["criado_em"]) >= uma_semana_atras
+    ]
+
+    if not entradas_da_semana:
+        st.caption("Nenhuma entrada nos últimos 7 dias.")
+    elif st.button("Gerar relatório da semana"):
+        with st.spinner("Lendo a semana..."):
+            try:
+                texto_relatorio = gerar_relatorio_semanal(entradas_da_semana)
+                st.markdown(
+                    f'<div class="entrada-anterior">{texto_relatorio}</div>',
+                    unsafe_allow_html=True,
+                )
+            except Exception:
+                st.error("Não foi possível gerar o relatório agora. Tente novamente em instantes.")
