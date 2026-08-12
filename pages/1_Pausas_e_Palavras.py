@@ -7,23 +7,40 @@ import streamlit as st
 import streamlit.components.v1 as components
 from supabase import Client, ClientOptions, create_client
 
-SYSTEM_PROMPT_RELATORIO_SEMANAL = """\
-Você gera um relatório psicológico semanal breve a partir de entradas de \
-diário pessoal de uma usuária. Escreva em português. Não inclua título, \
-saudação, nem nenhum texto fora das três partes abaixo, nesta ordem exata:
+SYSTEM_PROMPT_CAPITULO_SEMANAL = """\
+Você escreve o "capítulo da semana" do Pausas e Palavras — a camada mais \
+elaborada do produto, deliberadamente diferente e mais rica que a reflexão \
+diária. Você lê as entradas de diário dos últimos 7 dias (cada uma com \
+data) e escreve um capítulo real sobre a semana dessa pessoa, não um \
+relatório e não uma lista de observações separadas por dia.
 
-1. Padrão observado (lente junguiana, fase intermediária): identifique \
-repetições, temas recorrentes, ou possíveis sombras ou arquétipos que \
-aparecem no que a usuária escreveu ao longo da semana. Use linguagem \
-descritiva, nunca avaliativa — por exemplo "você trouxe X algumas vezes \
-essa semana". Nunca use frases como "isso indica Y" ou qualquer formulação \
-que soe como diagnóstico ou avaliação.
+Escreva em português. A resposta deve seguir esta forma exata:
 
-2. Sentido (lente frankliana): conecte o padrão observado a uma pergunta ou \
-direção de propósito. Não ofereça solução pronta — apenas uma reflexão que \
-ajude a pessoa a pensar para onde aquilo aponta.
+- A PRIMEIRA LINHA é somente o título do capítulo — uma frase curta, no \
+estilo de título de capítulo de livro pessoal (ex: "A semana em que ela \
+parou de pedir licença"), nascida do que mais se repetiu ou mais marcou a \
+semana. Sem aspas, sem numeração, sem a palavra "Título".
+- Uma linha em branco depois do título.
+- Em seguida, o corpo do capítulo, em texto corrido, SEM rótulos ou \
+números de seção (nunca escreva "Padrão observado:", "Sentido:", "Fecho:" \
+ou qualquer cabeçalho técnico) — a estrutura abaixo deve estar presente na \
+progressão do texto, não marcada visualmente:
 
-3. Fecho: uma frase breve de acolhimento, sem prescrição.
+1. Narrativa da semana: costure os dias como sequência, na segunda pessoa \
+("você"), como um capítulo sobre a vida dela — nunca como resumo de \
+aplicativo.
+2. Padrão observado (lente junguiana, fase intermediária de obra: sombra, \
+persona, arquétipo, individuação, complexo) — o padrão que atravessa a \
+semana inteira, não um dia isolado. Linguagem descritiva: "você trouxe X \
+algumas vezes", nunca "isso indica Y".
+3. Sentido (lente frankliana, logoterapia): para onde essa semana aponta, \
+sempre como pergunta ou direção, nunca como solução pronta.
+4. Fecho: frase curta de fechamento do capítulo, que convide a guardar \
+esse momento como parte da história dela.
+
+Termine sempre, como último parágrafo, com exatamente esta frase: "Este \
+espaço é uma ferramenta de autorreflexão e não substitui acompanhamento \
+psicológico ou psiquiátrico profissional."
 
 Proibido em qualquer parte do texto:
 - Termos clínicos ou de diagnóstico (transtorno, sintoma, quadro de, \
@@ -35,11 +52,10 @@ esotérico)
 Referência teórica permitida:
 - Jung (sombra, persona, arquétipo, individuação, complexo) é a base \
 principal.
-- Frankl (logoterapia, busca de sentido) é a camada de propósito, usada na \
-parte 2.
+- Frankl (logoterapia, busca de sentido) é a camada de propósito.
 - Freud só pode aparecer como nota pontual e explícita, quando um conceito \
 específico dele for diretamente aplicável (ex: mecanismo de defesa) — nunca \
-como estrutura geral do relatório.
+como estrutura geral do capítulo.
 """
 
 
@@ -79,8 +95,9 @@ def gerar_reflexao_entrada(texto: str) -> str:
     return next(bloco.text for bloco in resposta.content if bloco.type == "text")
 
 
-def gerar_relatorio_semanal(entradas: list[dict]) -> str:
-    corpo = "\n\n".join(
+def gerar_capitulo_semanal(entradas: list[dict]) -> tuple[str, str]:
+    """Retorna (titulo, corpo) do capítulo da semana."""
+    corpo_entradas = "\n\n".join(
         f"[{datetime.fromisoformat(e['criado_em']).strftime('%d/%m/%Y')}] {e['texto']}"
         for e in entradas
     )
@@ -89,12 +106,14 @@ def gerar_relatorio_semanal(entradas: list[dict]) -> str:
         model="claude-sonnet-5",
         max_tokens=4096,
         thinking={"type": "adaptive"},
-        system=SYSTEM_PROMPT_RELATORIO_SEMANAL,
-        messages=[{"role": "user", "content": f"Entradas da semana:\n\n{corpo}"}],
+        system=SYSTEM_PROMPT_CAPITULO_SEMANAL,
+        messages=[{"role": "user", "content": f"Entradas da semana:\n\n{corpo_entradas}"}],
     )
     if resposta.stop_reason == "refusal":
-        raise RuntimeError("O modelo não conseguiu gerar o relatório desta vez.")
-    return next(bloco.text for bloco in resposta.content if bloco.type == "text")
+        raise RuntimeError("O modelo não conseguiu gerar o capítulo desta vez.")
+    texto = next(bloco.text for bloco in resposta.content if bloco.type == "text")
+    titulo, _, corpo = texto.strip().partition("\n")
+    return titulo.strip(), corpo.strip()
 
 COR_FUNDO = "#FFFEFA"
 COR_PAINEL = "#FAF6EA"
@@ -392,7 +411,7 @@ else:
         )
 
 st.markdown("---")
-st.markdown('<p class="titulo-produto" style="font-size:1.3rem;">Relatório da semana</p>', unsafe_allow_html=True)
+st.markdown('<p class="titulo-produto" style="font-size:1.3rem;">Capítulo da semana</p>', unsafe_allow_html=True)
 
 if "ANTHROPIC_API_KEY" not in st.secrets:
     st.caption("Configuração de IA ausente. Preencha ANTHROPIC_API_KEY em .streamlit/secrets.toml.")
@@ -405,13 +424,17 @@ else:
 
     if not entradas_da_semana:
         st.caption("Nenhuma entrada nos últimos 7 dias.")
-    elif st.button("Gerar relatório da semana"):
+    elif st.button("Gerar capítulo da semana"):
         with st.spinner("Lendo a semana..."):
             try:
-                texto_relatorio = gerar_relatorio_semanal(entradas_da_semana)
+                titulo_capitulo, corpo_capitulo = gerar_capitulo_semanal(entradas_da_semana)
                 st.markdown(
-                    f'<div class="entrada-anterior">{texto_relatorio}</div>',
+                    f'<p class="titulo-produto" style="font-size:1.5rem;">{titulo_capitulo}</p>',
+                    unsafe_allow_html=True,
+                )
+                st.markdown(
+                    f'<div class="entrada-anterior">{corpo_capitulo}</div>',
                     unsafe_allow_html=True,
                 )
             except Exception:
-                st.error("Não foi possível gerar o relatório agora. Tente novamente em instantes.")
+                st.error("Não foi possível gerar o capítulo agora. Tente novamente em instantes.")
