@@ -132,20 +132,6 @@ FONT_IMPORT_URL = (
     "&family=Lora:ital,wght@0,400;0,500;1,400;1,500&display=swap"
 )
 
-# Silhueta de folha real (oval alongada, afunilada numa ponta) em vez de
-# blob com border-radius. `currentColor` herda a cor definida em cada
-# `.folha--*`; a opacidade de cada parte (contorno vs. nervura) vem dos
-# atributos `opacity` do próprio SVG, não de rgba(). Opacidade bem baixa
-# para ficar quase transparente — várias cópias espalhadas em vez de
-# formatos diferentes.
-FOLHA_SVG = (
-    '<svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">'
-    '<path d="M100,0 C160,60 190,160 170,260 C155,330 130,380 100,400 '
-    'C70,380 45,330 30,260 C10,160 40,60 100,0 Z" fill="currentColor" opacity="0.09" />'
-    '<path d="M100,20 L100,380" stroke="currentColor" stroke-width="1.5" opacity="0.06" />'
-    '</svg>'
-)
-
 st.set_page_config(page_title="Pausas e Palavras", page_icon="🌿", layout="centered")
 
 st.markdown(
@@ -157,35 +143,7 @@ st.markdown(
         background-color: {COR_FUNDO};
     }}
 
-    /* position:fixed (ancorada na janela) para ficar estável independente
-       da altura do conteúdo/rolagem. A folha musgo (lado direito) não
-       tem problema com isso. A folha rosa (lado esquerdo) precisa de um
-       "left" fixo que já pule a barra lateral do Streamlit — testado e
-       medido em ~300px de largura — porque a barra tem z-index altíssimo
-       (~999991) e cobre qualquer coisa posicionada contra a borda
-       esquerda da JANELA inteira, não só contra a área de conteúdo. */
-    .folha {{
-        position: fixed;
-        z-index: 0;
-        pointer-events: none;
-    }}
-    .folha svg {{
-        display: block;
-        width: 100%;
-        height: 100%;
-    }}
-    .folha--musgo {{
-        top: -4%;
-        right: -3%;
-        width: 15vw;
-        height: 30vw;
-        color: #3C9659;
-        transform: rotate(18deg);
-    }}
-
     .block-container {{
-        position: relative;
-        z-index: 1;
         font-family: 'Lora', serif;
         color: {COR_TEXTO_CORPO};
     }}
@@ -242,12 +200,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-st.markdown(
-    f'<div class="folha folha--musgo">{FOLHA_SVG}</div>',
-    unsafe_allow_html=True,
-)
-
 
 @st.cache_resource
 def get_base_client() -> Client | None:
