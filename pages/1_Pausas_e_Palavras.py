@@ -135,47 +135,14 @@ FONT_IMPORT_URL = (
 # Silhueta de folha real (oval alongada, afunilada numa ponta) em vez de
 # blob com border-radius. `currentColor` herda a cor definida em cada
 # `.folha--*`; a opacidade de cada parte (contorno vs. nervura) vem dos
-# atributos `opacity` do próprio SVG, não de rgba().
+# atributos `opacity` do próprio SVG, não de rgba(). Opacidade bem baixa
+# para ficar quase transparente — várias cópias espalhadas em vez de
+# formatos diferentes.
 FOLHA_SVG = (
     '<svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">'
     '<path d="M100,0 C160,60 190,160 170,260 C155,330 130,380 100,400 '
-    'C70,380 45,330 30,260 C10,160 40,60 100,0 Z" fill="currentColor" opacity="0.20" />'
-    '<path d="M100,20 L100,380" stroke="currentColor" stroke-width="1.5" opacity="0.15" />'
-    '</svg>'
-)
-
-# Silhueta de folha de Costela de Adão (Monstera deliciosa): base larga em
-# forma de coração, recortes profundos (lóbulos) em direção à nervura
-# central e fenestrações (furos ovais) — a marca registrada da espécie.
-# Contorno e nervuras em `<path>` separados para o preenchimento do
-# contorno não sofrer artefato dos subpaths abertos das nervuras. Os
-# furos usam a cor de fundo da página (não currentColor) para simular
-# vazado de verdade.
-FOLHA_SVG_MONSTERA = (
-    '<svg viewBox="0 0 300 340" xmlns="http://www.w3.org/2000/svg">'
-    '<path d="M150,8 '
-    'C200,20 245,55 258,100 '
-    'C270,130 250,150 235,155 '
-    'C260,175 275,205 255,215 '
-    'C245,235 220,240 215,245 '
-    'C230,265 235,290 205,300 '
-    'C195,310 180,318 170,318 '
-    'C160,300 155,285 150,270 '
-    'C145,285 140,300 130,318 '
-    'C120,318 105,310 95,300 '
-    'C65,290 70,265 85,245 '
-    'C80,240 55,235 45,215 '
-    'C25,205 40,175 65,155 '
-    'C50,150 30,130 42,100 '
-    'C55,55 100,20 150,8 Z" fill="currentColor" opacity="0.18" />'
-    '<path d="M150,25 L150,270 '
-    'M150,60 L230,110 M150,140 L245,200 M150,210 L215,290 '
-    'M150,60 L70,110 M150,140 L55,200 M150,210 L85,290" '
-    'stroke="currentColor" stroke-width="1.5" opacity="0.14" fill="none" />'
-    f'<ellipse cx="210" cy="100" rx="9" ry="16" fill="{COR_FUNDO}" opacity="0.9" transform="rotate(20 210 100)" />'
-    f'<ellipse cx="225" cy="190" rx="8" ry="14" fill="{COR_FUNDO}" opacity="0.9" transform="rotate(15 225 190)" />'
-    f'<ellipse cx="90" cy="100" rx="9" ry="16" fill="{COR_FUNDO}" opacity="0.9" transform="rotate(-20 90 100)" />'
-    f'<ellipse cx="75" cy="190" rx="8" ry="14" fill="{COR_FUNDO}" opacity="0.9" transform="rotate(-15 75 190)" />'
+    'C70,380 45,330 30,260 C10,160 40,60 100,0 Z" fill="currentColor" opacity="0.09" />'
+    '<path d="M100,20 L100,380" stroke="currentColor" stroke-width="1.5" opacity="0.06" />'
     '</svg>'
 )
 
@@ -218,10 +185,42 @@ st.markdown(
     .folha--rosa {{
         bottom: -5%;
         left: 320px;
-        width: 16vw;
-        height: 18vw;
+        width: 12vw;
+        height: 24vw;
         color: {COR_ROSA_ACENTO};
-        transform: rotate(-20deg);
+        transform: rotate(-30deg);
+    }}
+    .folha--musgo-2 {{
+        bottom: -8%;
+        right: 4%;
+        width: 9vw;
+        height: 18vw;
+        color: #3C9659;
+        transform: rotate(-25deg);
+    }}
+    .folha--musgo-3 {{
+        top: 32%;
+        right: -4%;
+        width: 8vw;
+        height: 16vw;
+        color: #3C9659;
+        transform: rotate(60deg);
+    }}
+    .folha--rosa-2 {{
+        bottom: 15%;
+        left: 350px;
+        width: 7vw;
+        height: 14vw;
+        color: {COR_ROSA_ACENTO};
+        transform: rotate(-50deg);
+    }}
+    .folha--rosa-3 {{
+        bottom: -20%;
+        left: 420px;
+        width: 6vw;
+        height: 12vw;
+        color: {COR_ROSA_ACENTO};
+        transform: rotate(10deg);
     }}
 
     .block-container {{
@@ -286,7 +285,11 @@ st.markdown(
 
 st.markdown(
     f'<div class="folha folha--musgo">{FOLHA_SVG}</div>'
-    f'<div class="folha folha--rosa">{FOLHA_SVG_MONSTERA}</div>',
+    f'<div class="folha folha--rosa">{FOLHA_SVG}</div>'
+    f'<div class="folha folha--musgo-2">{FOLHA_SVG}</div>'
+    f'<div class="folha folha--musgo-3">{FOLHA_SVG}</div>'
+    f'<div class="folha folha--rosa-2">{FOLHA_SVG}</div>'
+    f'<div class="folha folha--rosa-3">{FOLHA_SVG}</div>',
     unsafe_allow_html=True,
 )
 
