@@ -81,7 +81,46 @@ substitui acompanhamento psicológico ou psiquiátrico profissional."
 """
 
 
+SYSTEM_PROMPT_VERIFICACAO_RISCO = """\
+Analise o texto abaixo e responda APENAS "RISCO" ou "SEGURO". Considere \
+RISCO se houver menção a desejo de morrer, ideação suicida, plano de \
+autolesão, ou desespero que sugira perigo imediato à integridade física da \
+pessoa. Não explique, não pontue, não repita o texto — responda só com a \
+palavra."""
+
+MENSAGEM_RISCO = """\
+Percebo que o que você escreveu carrega uma dor muito grande. Isso não é \
+algo que a escrita sozinha resolve, e você não precisa passar por isso sem \
+apoio.
+
+Se estiver em risco agora, ligue para o CVV: 188 (ligação gratuita, 24 \
+horas) ou acesse cvv.org.br para conversar por chat.
+
+Você não está sozinha nisso."""
+
+
+def _contem_sinal_de_risco(texto: str) -> bool:
+    cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    resposta = cliente_anthropic.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=8,
+        thinking={"type": "disabled"},
+        system=SYSTEM_PROMPT_VERIFICACAO_RISCO,
+        messages=[{"role": "user", "content": texto}],
+    )
+    if resposta.stop_reason == "refusal":
+        # Checagem de segurança falhou: trata como risco (conservador) em vez
+        # de deixar passar para a reflexão poética sem verificação.
+        return True
+    texto_resposta = next(
+        (bloco.text for bloco in resposta.content if bloco.type == "text"), ""
+    )
+    return "RISCO" in texto_resposta.upper()
+
+
 def gerar_reflexao_entrada(texto: str) -> str:
+    if _contem_sinal_de_risco(texto):
+        return MENSAGEM_RISCO
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
         model="claude-sonnet-5",
@@ -101,6 +140,8 @@ def gerar_capitulo_semanal(entradas: list[dict]) -> tuple[str, str]:
         f"[{datetime.fromisoformat(e['criado_em']).strftime('%d/%m/%Y')}] {e['texto']}"
         for e in entradas
     )
+    if _contem_sinal_de_risco(corpo_entradas):
+        return "Antes de qualquer coisa", MENSAGEM_RISCO
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
         model="claude-sonnet-5",
