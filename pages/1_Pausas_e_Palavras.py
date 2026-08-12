@@ -3,14 +3,14 @@ from datetime import datetime
 import streamlit as st
 from supabase import Client, create_client
 
-# TODO(usuária): hex exato do "rosa antigo/nude" de acento não foi enviado ainda.
-# Placeholder abaixo — trocar assim que o valor exato chegar.
 COR_FUNDO = "#FFFEFA"
 COR_PAINEL = "#FAF6EA"
 COR_VERDE_MUSGO = "#121509"
 COR_VERDE_MUSGO_HOVER = "#080A04"
-COR_ACENTO_ROSA_PLACEHOLDER = "#C9A0A6"
+COR_ROSA_ACENTO = "#C6A9A0"
+COR_ROSA_VEIL = "rgba(198,169,160,0.20)"
 COR_TEXTO_CORPO = "#5A3E3E"
+COR_TEXTO_SECUNDARIO = "#8A6B64"
 
 FONT_IMPORT_URL = (
     "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@"
@@ -50,8 +50,7 @@ st.markdown(
         left: -10%;
         width: 35vw;
         height: 35vw;
-        background: {COR_ACENTO_ROSA_PLACEHOLDER};
-        opacity: 0.08;
+        background: {COR_ROSA_VEIL};
         border-radius: 40% 60% 70% 30% / 40% 70% 30% 60%;
         z-index: 0;
         pointer-events: none;
@@ -67,7 +66,7 @@ st.markdown(
     h1, h2, h3, .titulo-produto {{
         font-family: 'Fraunces', serif;
         font-style: italic;
-        color: {COR_ACENTO_ROSA_PLACEHOLDER};
+        color: {COR_ROSA_ACENTO};
         font-weight: 500;
     }}
 
@@ -78,7 +77,7 @@ st.markdown(
     textarea {{
         background-color: {COR_PAINEL} !important;
         color: {COR_TEXTO_CORPO} !important;
-        border: 1px solid {COR_ACENTO_ROSA_PLACEHOLDER} !important;
+        border: 1px solid {COR_ROSA_ACENTO} !important;
         border-radius: 6px !important;
     }}
 
@@ -96,7 +95,7 @@ st.markdown(
 
     .entrada-anterior {{
         background-color: {COR_PAINEL};
-        border-left: 3px solid {COR_ACENTO_ROSA_PLACEHOLDER};
+        border-left: 3px solid {COR_ROSA_ACENTO};
         padding: 0.75rem 1rem;
         margin-bottom: 0.75rem;
         border-radius: 4px;
@@ -105,8 +104,12 @@ st.markdown(
     .entrada-data {{
         font-family: 'Fraunces', serif;
         font-style: italic;
-        color: {COR_ACENTO_ROSA_PLACEHOLDER};
+        color: {COR_ROSA_ACENTO};
         font-size: 0.85rem;
+    }}
+
+    [data-testid="stCaptionContainer"], small {{
+        color: {COR_TEXTO_SECUNDARIO} !important;
     }}
     </style>
     """,
