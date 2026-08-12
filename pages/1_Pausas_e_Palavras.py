@@ -93,13 +93,15 @@ palavra."""
 # blocos separados por linha em branco de forma inconsistente quando o
 # texto é passado como markdown puro (o primeiro bloco às vezes fica sem
 # <p>, os demais ganham). Escrever o HTML explicitamente aqui garante
-# respiro igual entre os três parágrafos independente desse comportamento.
+# respiro igual entre os quatro parágrafos independente desse comportamento.
 MENSAGEM_RISCO = (
     "<p>Percebo que o que você escreveu carrega uma dor muito grande. "
     "Isso não é algo que a escrita sozinha resolve, e você não precisa "
     "passar por isso sem apoio.</p>"
-    "<p>Se estiver em risco agora, ligue para o CVV: 188 (ligação gratuita, "
+    "<p>Se estiver no Brasil, ligue para o CVV: 188 (ligação gratuita, "
     "24 horas) ou acesse cvv.org.br para conversar por chat.</p>"
+    "<p>Se estiver em Portugal, ligue para a Linha Nacional de Prevenção "
+    "do Suicídio: 1411 (ligação gratuita, 24 horas).</p>"
     "<p>Você não está sozinha nisso.</p>"
 )
 
