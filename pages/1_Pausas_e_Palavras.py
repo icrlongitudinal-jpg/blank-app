@@ -370,19 +370,30 @@ if not st.session_state.pp_user:
         with st.form("criar_conta_pausas_e_palavras"):
             novo_email = st.text_input("E-mail", key="novo_email")
             nova_senha = st.text_input("Senha", type="password", key="nova_senha")
+            aceite_termos = st.checkbox(
+                "Confirmo que tenho 18 anos ou mais e li a política de privacidade",
+                key="aceite_termos_cadastro",
+            )
+            st.page_link("pages/2_Privacidade.py", label="Ler a política de privacidade")
             criar_conta = st.form_submit_button("Criar conta")
 
         if criar_conta:
-            try:
-                resposta = base_client.auth.sign_up({"email": novo_email, "password": nova_senha})
-                if resposta.session:
-                    st.session_state.pp_user = resposta.user
-                    st.session_state.pp_access_token = resposta.session.access_token
-                    st.rerun()
-                else:
-                    st.success("Conta criada. Confirme o e-mail (se solicitado) e entre na aba \"Entrar\".")
-            except Exception as erro:
-                st.error(f"Não foi possível criar a conta: {erro}")
+            if not aceite_termos:
+                st.error(
+                    "Pra criar a conta, marque a caixa confirmando que tem 18 anos "
+                    "ou mais e leu a política de privacidade."
+                )
+            else:
+                try:
+                    resposta = base_client.auth.sign_up({"email": novo_email, "password": nova_senha})
+                    if resposta.session:
+                        st.session_state.pp_user = resposta.user
+                        st.session_state.pp_access_token = resposta.session.access_token
+                        st.rerun()
+                    else:
+                        st.success("Conta criada. Confirme o e-mail (se solicitado) e entre na aba \"Entrar\".")
+                except Exception as erro:
+                    st.error(f"Não foi possível criar a conta: {erro}")
     st.stop()
 
 # Cliente autenticado como a usuária logada, isolado nesta sessão de navegador
@@ -397,6 +408,41 @@ with col_sair:
         st.session_state.pp_user = None
         st.session_state.pp_access_token = None
         st.rerun()
+
+with st.expander("Configurações da conta"):
+    st.page_link("pages/2_Privacidade.py", label="Ver política de privacidade")
+    st.markdown("---")
+    st.caption(
+        "Excluir sua conta apaga permanentemente seu login, suas entradas "
+        "de diário e seus capítulos semanais. Essa ação não pode ser "
+        "desfeita."
+    )
+    confirmar_exclusao = st.checkbox(
+        "Sim, quero excluir minha conta e todos os meus dados permanentemente.",
+        key="confirmar_exclusao_conta",
+    )
+    if st.button("Excluir minha conta e meus dados", disabled=not confirmar_exclusao):
+        if "SUPABASE_SERVICE_ROLE_KEY" not in st.secrets:
+            st.error(
+                "Exclusão de conta ainda não está configurada neste app "
+                "(falta SUPABASE_SERVICE_ROLE_KEY). Fale com a "
+                "administradora."
+            )
+        else:
+            try:
+                cliente_admin = create_client(
+                    st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_SERVICE_ROLE_KEY"]
+                )
+                cliente_admin.auth.admin.delete_user(usuaria_id)
+                st.session_state.pp_user = None
+                st.session_state.pp_access_token = None
+                st.success("Conta excluída. Até logo.")
+                st.rerun()
+            except Exception:
+                st.error(
+                    "Não foi possível excluir a conta agora. Tente "
+                    "novamente em instantes."
+                )
 
 texto = st.text_area("Escreva livremente sobre o seu dia", height=220, key="texto_entrada")
 if texto.strip():
