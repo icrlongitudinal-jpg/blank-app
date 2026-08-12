@@ -20,9 +20,13 @@ create policy "usuaria insere so seus capitulos"
 -- Status de assinatura (sem processamento de pagamento ainda —
 -- essa tabela só existe para a lógica de bloqueio funcionar;
 -- fica sem nenhuma linha até a integração de cobrança ser feita)
+-- NOTA: schema efetivamente aplicado no banco usa "status" (text:
+-- 'ativa' / 'inativa' / 'cancelada'), não "ativa" (boolean) como
+-- rascunhado originalmente aqui. Este arquivo reflete o que está
+-- realmente no banco.
 create table assinaturas (
   usuaria_id uuid primary key references auth.users(id),
-  ativa boolean not null default false,
+  status text not null default 'inativa',
   moeda text,
   criado_em timestamptz not null default now(),
   atualizado_em timestamptz not null default now()

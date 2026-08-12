@@ -451,9 +451,11 @@ else:
     total_capitulos_gerados = capitulos_anteriores.count or 0
 
     assinatura = (
-        client.table("assinaturas").select("ativa").maybe_single().execute()
+        client.table("assinaturas").select("status").maybe_single().execute()
     )
-    esta_assinante = bool(assinatura and assinatura.data and assinatura.data.get("ativa"))
+    esta_assinante = bool(
+        assinatura and assinatura.data and assinatura.data.get("status") == "ativa"
+    )
 
     capitulos_gratuitos_restantes = max(0, CAPITULOS_GRATUITOS_LIMITE - total_capitulos_gerados)
     bloqueado_por_assinatura = total_capitulos_gerados >= CAPITULOS_GRATUITOS_LIMITE and not esta_assinante
