@@ -107,6 +107,27 @@ MENSAGEM_RISCO = (
 
 
 def _contem_sinal_de_risco(texto: str) -> bool:
+    """
+    CAMADA DE DETECÇÃO DE CRISE — especificação final aprovada em 2026-08-12
+
+    Comportamento:
+    - Toda entrada de diário e todo capítulo semanal passam por checagem
+      de risco ANTES do prompt normal (junguiano/frankliano). Esta função
+      é o ponto único dessa checagem — chamada por gerar_reflexao_entrada
+      e por gerar_capitulo_semanal.
+    - Classificador retorna RISCO ou SEGURO.
+    - Em caso de falha do classificador (erro de API, rede etc), o sistema
+      trata como RISCO por padrão — nunca deixa passar sem checagem.
+    - Se RISCO: não chama a IA para gerar reflexão. Retorna mensagem fixa,
+      pré-escrita, sem geração de conteúdo novo nesse momento.
+    - Mensagem fixa cobre Brasil (CVV, 188, cvv.org.br) e Portugal (Linha
+      Nacional de Prevenção do Suicídio, 1411), ambos exibidos sempre
+      juntos, sem tentativa de detectar em qual país a usuária está.
+    - Nenhum registro de classificação de risco é salvo ou reportado para
+      a administradora do produto. Fica só entre a usuária e a linha de
+      apoio — decisão deliberada de privacidade.
+    - Se SEGURO: segue o fluxo normal de reflexão.
+    """
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
         model="claude-sonnet-5",
