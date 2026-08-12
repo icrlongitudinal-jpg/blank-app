@@ -43,6 +43,42 @@ como estrutura geral do relatório.
 """
 
 
+SYSTEM_PROMPT_REFLEXAO_ENTRADA = """\
+Você é a camada reflexiva do Pausas e Palavras, parte do ICR (framework de \
+continuidade cognitiva). Sua função é ler o que a usuária escreveu e \
+devolver reflexão estruturada em três partes:
+
+1. Padrão observado (lente junguiana, fase intermediária de obra: sombra, \
+persona, arquétipo, individuação, complexo). Linguagem: "você trouxe X \
+algumas vezes", nunca "isso indica Y".
+2. Sentido (lente frankliana, logoterapia): conecta o padrão a uma pergunta \
+ou direção de propósito, nunca solução pronta.
+3. Fecho breve de acolhimento, sem prescrição.
+
+Proibido: termos clínicos ou de diagnóstico (transtorno, sintoma, quadro \
+de, patologia), conceitos junguianos de fase tardia (alquimia, \
+sincronicidade, esoterismo), qualquer frase que soe como avaliação \
+profissional.
+
+Sempre termina com: "Este espaço é uma ferramenta de autorreflexão e não \
+substitui acompanhamento psicológico ou psiquiátrico profissional."
+"""
+
+
+def gerar_reflexao_entrada(texto: str) -> str:
+    cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    resposta = cliente_anthropic.messages.create(
+        model="claude-opus-5",
+        max_tokens=2048,
+        thinking={"type": "adaptive"},
+        system=SYSTEM_PROMPT_REFLEXAO_ENTRADA,
+        messages=[{"role": "user", "content": texto}],
+    )
+    if resposta.stop_reason == "refusal":
+        raise RuntimeError("O modelo não conseguiu gerar a reflexão desta vez.")
+    return next(bloco.text for bloco in resposta.content if bloco.type == "text")
+
+
 def gerar_relatorio_semanal(entradas: list[dict]) -> str:
     corpo = "\n\n".join(
         f"[{datetime.fromisoformat(e['criado_em']).strftime('%d/%m/%Y')}] {e['texto']}"
@@ -219,6 +255,8 @@ components.html(
 if "pp_user" not in st.session_state:
     st.session_state.pp_user = None
     st.session_state.pp_access_token = None
+if "pp_ultima_reflexao" not in st.session_state:
+    st.session_state.pp_ultima_reflexao = None
 
 st.markdown('<p class="titulo-produto" style="font-size:2rem;">Pausas e Palavras</p>', unsafe_allow_html=True)
 
@@ -311,9 +349,22 @@ if st.button("Salvar entrada do dia"):
             {"usuaria_id": usuaria_id, "texto": texto.strip()}
         ).execute()
         st.success("Entrada salva.")
+        if "ANTHROPIC_API_KEY" in st.secrets:
+            with st.spinner("Refletindo sobre o que você escreveu..."):
+                try:
+                    st.session_state.pp_ultima_reflexao = gerar_reflexao_entrada(texto.strip())
+                except Exception:
+                    st.session_state.pp_ultima_reflexao = None
+                    st.warning("Não foi possível gerar a reflexão desta vez.")
         st.rerun()
     else:
         st.warning("Escreva algo antes de salvar.")
+
+if st.session_state.pp_ultima_reflexao:
+    st.markdown(
+        f'<div class="entrada-anterior">{st.session_state.pp_ultima_reflexao}</div>',
+        unsafe_allow_html=True,
+    )
 
 st.markdown("---")
 st.markdown('<p class="titulo-produto" style="font-size:1.3rem;">Entradas anteriores</p>', unsafe_allow_html=True)
