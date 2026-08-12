@@ -1,7 +1,10 @@
+import json
 from datetime import datetime
+from urllib.parse import urlencode
 
 import streamlit as st
-from supabase import Client, create_client
+import streamlit.components.v1 as components
+from supabase import Client, ClientOptions, create_client
 
 COR_FUNDO = "#FFFEFA"
 COR_PAINEL = "#FAF6EA"
@@ -81,14 +84,14 @@ st.markdown(
         border-radius: 6px !important;
     }}
 
-    .stButton > button {{
+    .stButton > button, [data-testid="stLinkButton"] a {{
         background-color: {COR_VERDE_MUSGO};
         color: {COR_FUNDO};
         border: none;
         border-radius: 6px;
         font-family: 'Lora', serif;
     }}
-    .stButton > button:hover {{
+    .stButton > button:hover, [data-testid="stLinkButton"] a:hover {{
         background-color: {COR_VERDE_MUSGO_HOVER};
         color: {COR_FUNDO};
     }}
@@ -124,8 +127,40 @@ def get_base_client() -> Client | None:
         key = st.secrets["SUPABASE_ANON_KEY"]
     except (FileNotFoundError, KeyError):
         return None
-    return create_client(url, key)
+    return create_client(url, key, options=ClientOptions(flow_type="implicit"))
 
+
+def google_oauth_url(app_url: str) -> str:
+    params = urlencode({"provider": "google", "redirect_to": app_url})
+    return f"{st.secrets['SUPABASE_URL']}/auth/v1/authorize?{params}"
+
+
+# O OAuth do Supabase devolve o token no fragmento da URL (#access_token=...),
+# que o servidor Python não enxerga. Esse script (rodando no navegador, dentro
+# do iframe do componente — por isso usa window.top) move o token do fragmento
+# para a query string e recarrega, aí sim visível para st.query_params.
+components.html(
+    """
+    <script>
+    (function() {
+        const hash = window.top.location.hash;
+        if (hash && hash.includes('access_token')) {
+            const params = new URLSearchParams(hash.substring(1));
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+            if (accessToken && refreshToken) {
+                const url = new URL(window.top.location.href);
+                url.hash = '';
+                url.searchParams.set('access_token', accessToken);
+                url.searchParams.set('refresh_token', refreshToken);
+                window.top.location.replace(url.toString());
+            }
+        }
+    })();
+    </script>
+    """,
+    height=0,
+)
 
 if "pp_user" not in st.session_state:
     st.session_state.pp_user = None
@@ -141,7 +176,27 @@ if base_client is None:
     )
     st.stop()
 
+qp = st.query_params
+if "access_token" in qp and "refresh_token" in qp and not st.session_state.pp_user:
+    try:
+        resposta = base_client.auth.set_session(qp["access_token"], qp["refresh_token"])
+        st.session_state.pp_user = resposta.user
+        st.session_state.pp_access_token = resposta.session.access_token
+    except Exception:
+        st.error("Não foi possível completar o login com Google.")
+    st.query_params.clear()
+    limpo = json.dumps(st.secrets.get("APP_URL", ""))
+    components.html(
+        f"<script>window.top.history.replaceState(null, '', {limpo});</script>",
+        height=0,
+    )
+    st.rerun()
+
 if not st.session_state.pp_user:
+    if "APP_URL" in st.secrets:
+        st.link_button("Entrar com Google", google_oauth_url(st.secrets["APP_URL"]), use_container_width=True)
+        st.caption("ou entre com e-mail e senha")
+
     aba_entrar, aba_criar_conta = st.tabs(["Entrar", "Criar conta"])
 
     with aba_entrar:
