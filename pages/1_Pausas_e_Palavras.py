@@ -142,19 +142,40 @@ if base_client is None:
     st.stop()
 
 if not st.session_state.pp_user:
-    with st.form("login_pausas_e_palavras"):
-        email = st.text_input("E-mail")
-        senha = st.text_input("Senha", type="password")
-        entrar = st.form_submit_button("Entrar")
+    aba_entrar, aba_criar_conta = st.tabs(["Entrar", "Criar conta"])
 
-    if entrar:
-        try:
-            resposta = base_client.auth.sign_in_with_password({"email": email, "password": senha})
-            st.session_state.pp_user = resposta.user
-            st.session_state.pp_access_token = resposta.session.access_token
-            st.rerun()
-        except Exception:
-            st.error("E-mail ou senha inválidos.")
+    with aba_entrar:
+        with st.form("login_pausas_e_palavras"):
+            email = st.text_input("E-mail")
+            senha = st.text_input("Senha", type="password")
+            entrar = st.form_submit_button("Entrar")
+
+        if entrar:
+            try:
+                resposta = base_client.auth.sign_in_with_password({"email": email, "password": senha})
+                st.session_state.pp_user = resposta.user
+                st.session_state.pp_access_token = resposta.session.access_token
+                st.rerun()
+            except Exception:
+                st.error("E-mail ou senha inválidos.")
+
+    with aba_criar_conta:
+        with st.form("criar_conta_pausas_e_palavras"):
+            novo_email = st.text_input("E-mail", key="novo_email")
+            nova_senha = st.text_input("Senha", type="password", key="nova_senha")
+            criar_conta = st.form_submit_button("Criar conta")
+
+        if criar_conta:
+            try:
+                resposta = base_client.auth.sign_up({"email": novo_email, "password": nova_senha})
+                if resposta.session:
+                    st.session_state.pp_user = resposta.user
+                    st.session_state.pp_access_token = resposta.session.access_token
+                    st.rerun()
+                else:
+                    st.success("Conta criada. Confirme o e-mail (se solicitado) e entre na aba \"Entrar\".")
+            except Exception as erro:
+                st.error(f"Não foi possível criar a conta: {erro}")
     st.stop()
 
 # Cliente autenticado como a usuária logada, isolado nesta sessão de navegador
