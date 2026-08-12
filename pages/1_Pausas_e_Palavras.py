@@ -182,46 +182,6 @@ st.markdown(
         color: #3C9659;
         transform: rotate(18deg);
     }}
-    .folha--rosa {{
-        bottom: -5%;
-        left: 320px;
-        width: 12vw;
-        height: 24vw;
-        color: {COR_ROSA_ACENTO};
-        transform: rotate(-30deg);
-    }}
-    .folha--musgo-2 {{
-        bottom: -8%;
-        right: 4%;
-        width: 9vw;
-        height: 18vw;
-        color: #3C9659;
-        transform: rotate(-25deg);
-    }}
-    .folha--musgo-3 {{
-        top: 32%;
-        right: -4%;
-        width: 8vw;
-        height: 16vw;
-        color: #3C9659;
-        transform: rotate(60deg);
-    }}
-    .folha--rosa-2 {{
-        bottom: 15%;
-        left: 350px;
-        width: 7vw;
-        height: 14vw;
-        color: {COR_ROSA_ACENTO};
-        transform: rotate(-50deg);
-    }}
-    .folha--rosa-3 {{
-        bottom: -20%;
-        left: 420px;
-        width: 6vw;
-        height: 12vw;
-        color: {COR_ROSA_ACENTO};
-        transform: rotate(10deg);
-    }}
 
     .block-container {{
         position: relative;
@@ -284,12 +244,7 @@ st.markdown(
 )
 
 st.markdown(
-    f'<div class="folha folha--musgo">{FOLHA_SVG}</div>'
-    f'<div class="folha folha--rosa">{FOLHA_SVG}</div>'
-    f'<div class="folha folha--musgo-2">{FOLHA_SVG}</div>'
-    f'<div class="folha folha--musgo-3">{FOLHA_SVG}</div>'
-    f'<div class="folha folha--rosa-2">{FOLHA_SVG}</div>'
-    f'<div class="folha folha--rosa-3">{FOLHA_SVG}</div>',
+    f'<div class="folha folha--musgo">{FOLHA_SVG}</div>',
     unsafe_allow_html=True,
 )
 
