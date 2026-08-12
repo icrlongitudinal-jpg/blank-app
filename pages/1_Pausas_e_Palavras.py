@@ -88,15 +88,20 @@ autolesão, ou desespero que sugira perigo imediato à integridade física da \
 pessoa. Não explique, não pontue, não repita o texto — responda só com a \
 palavra."""
 
-MENSAGEM_RISCO = """\
-Percebo que o que você escreveu carrega uma dor muito grande. Isso não é \
-algo que a escrita sozinha resolve, e você não precisa passar por isso sem \
-apoio.
-
-Se estiver em risco agora, ligue para o CVV: 188 (ligação gratuita, 24 \
-horas) ou acesse cvv.org.br para conversar por chat.
-
-Você não está sozinha nisso."""
+# Cada bloco fechado em seu próprio <p> — a renderização de
+# `.entrada-anterior` (via st.markdown com unsafe_allow_html=True) envolve
+# blocos separados por linha em branco de forma inconsistente quando o
+# texto é passado como markdown puro (o primeiro bloco às vezes fica sem
+# <p>, os demais ganham). Escrever o HTML explicitamente aqui garante
+# respiro igual entre os três parágrafos independente desse comportamento.
+MENSAGEM_RISCO = (
+    "<p>Percebo que o que você escreveu carrega uma dor muito grande. "
+    "Isso não é algo que a escrita sozinha resolve, e você não precisa "
+    "passar por isso sem apoio.</p>"
+    "<p>Se estiver em risco agora, ligue para o CVV: 188 (ligação gratuita, "
+    "24 horas) ou acesse cvv.org.br para conversar por chat.</p>"
+    "<p>Você não está sozinha nisso.</p>"
+)
 
 
 def _contem_sinal_de_risco(texto: str) -> bool:
