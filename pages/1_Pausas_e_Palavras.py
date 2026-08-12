@@ -68,7 +68,7 @@ substitui acompanhamento psicológico ou psiquiátrico profissional."
 def gerar_reflexao_entrada(texto: str) -> str:
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
-        model="claude-opus-5",
+        model="claude-sonnet-5",
         max_tokens=2048,
         thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT_REFLEXAO_ENTRADA,
@@ -86,7 +86,7 @@ def gerar_relatorio_semanal(entradas: list[dict]) -> str:
     )
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
-        model="claude-opus-5",
+        model="claude-sonnet-5",
         max_tokens=4096,
         thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT_RELATORIO_SEMANAL,
@@ -100,7 +100,11 @@ COR_FUNDO = "#FFFEFA"
 COR_PAINEL = "#FAF6EA"
 COR_VERDE_MUSGO = "#121509"
 COR_VERDE_MUSGO_HOVER = "#080A04"
-COR_MUSGO_VEIL = "rgba(18,21,9,0.20)"
+# Verde mais claro/saturado que #121509 (só para esta forma de fundo) —
+# a 20% de opacidade sobre o fundo creme, o musgo escuro (18,21,9) quase
+# não sobrevive ao blend e lê como cinza; este tom mantém a família
+# "musgo" mas permanece perceptível como verde no mesmo alpha.
+COR_MUSGO_VEIL = "rgba(60,150,90,0.20)"
 COR_ROSA_ACENTO = "#C6A9A0"
 COR_ROSA_VEIL = "rgba(198,169,160,0.20)"
 COR_TEXTO_CORPO = "#5A3E3E"
