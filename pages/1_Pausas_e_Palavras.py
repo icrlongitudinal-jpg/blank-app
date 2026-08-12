@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 import anthropic
 import streamlit as st
 import streamlit.components.v1 as components
+from postgrest.exceptions import APIError
 from supabase import Client, ClientOptions, create_client
 
 SYSTEM_PROMPT_CAPITULO_SEMANAL = """\
@@ -315,8 +316,11 @@ components.html(
 if "pp_user" not in st.session_state:
     st.session_state.pp_user = None
     st.session_state.pp_access_token = None
+    st.session_state.pp_refresh_token = None
 if "pp_ultima_reflexao" not in st.session_state:
     st.session_state.pp_ultima_reflexao = None
+if "pp_mensagem_sessao_expirada" not in st.session_state:
+    st.session_state.pp_mensagem_sessao_expirada = False
 
 st.markdown('<p class="titulo-produto" style="font-size:2rem;">Pausas e Palavras</p>', unsafe_allow_html=True)
 
@@ -334,6 +338,7 @@ if "access_token" in qp and "refresh_token" in qp and not st.session_state.pp_us
         resposta = base_client.auth.set_session(qp["access_token"], qp["refresh_token"])
         st.session_state.pp_user = resposta.user
         st.session_state.pp_access_token = resposta.session.access_token
+        st.session_state.pp_refresh_token = resposta.session.refresh_token
     except Exception:
         st.error("Não foi possível completar o login com Google.")
     st.query_params.clear()
@@ -345,6 +350,10 @@ if "access_token" in qp and "refresh_token" in qp and not st.session_state.pp_us
     st.rerun()
 
 if not st.session_state.pp_user:
+    if st.session_state.pp_mensagem_sessao_expirada:
+        st.warning("Sua sessão expirou. Entra de novo pra continuar.")
+        st.session_state.pp_mensagem_sessao_expirada = False
+
     if "APP_URL" in st.secrets:
         st.link_button("Entrar com Google", google_oauth_url(st.secrets["APP_URL"]), use_container_width=True)
         st.caption("ou entre com e-mail e senha")
@@ -362,6 +371,7 @@ if not st.session_state.pp_user:
                 resposta = base_client.auth.sign_in_with_password({"email": email, "password": senha})
                 st.session_state.pp_user = resposta.user
                 st.session_state.pp_access_token = resposta.session.access_token
+                st.session_state.pp_refresh_token = resposta.session.refresh_token
                 st.rerun()
             except Exception:
                 st.error("E-mail ou senha inválidos.")
@@ -389,6 +399,7 @@ if not st.session_state.pp_user:
                     if resposta.session:
                         st.session_state.pp_user = resposta.user
                         st.session_state.pp_access_token = resposta.session.access_token
+                        st.session_state.pp_refresh_token = resposta.session.refresh_token
                         st.rerun()
                     else:
                         st.success("Conta criada. Confirme o e-mail (se solicitado) e entre na aba \"Entrar\".")
@@ -402,11 +413,63 @@ client = base_client
 client.postgrest.auth(st.session_state.pp_access_token)
 usuaria_id = st.session_state.pp_user.id
 
+
+def _sessao_expirou(erro: APIError) -> bool:
+    mensagem = (erro.message or "").lower()
+    return erro.code == "PGRST301" or "jwt" in mensagem or "401" in mensagem
+
+
+def _renovar_sessao(refresh_token: str):
+    """Troca o refresh_token por uma sessão nova. Usa um client à parte,
+    nunca o base_client cacheado — senão a sessão renovada vazaria pra
+    outras usuárias que compartilham o mesmo processo do Streamlit."""
+    cliente_temporario = create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_ANON_KEY"],
+        options=ClientOptions(flow_type="implicit"),
+    )
+    return cliente_temporario.auth.refresh_session(refresh_token).session
+
+
+def _forcar_novo_login():
+    st.session_state.pp_user = None
+    st.session_state.pp_access_token = None
+    st.session_state.pp_refresh_token = None
+    st.session_state.pp_mensagem_sessao_expirada = True
+    st.rerun()
+
+
+def _executar_com_renovacao(construir_query):
+    """Roda construir_query() (uma chamada .execute() do PostgREST). Se a
+    sessão expirou (JWT expired / 401), tenta renovar com o refresh_token
+    uma vez e repete a chamada com o token novo. Se a renovação também
+    falhar, força novo login em vez de estourar o erro técnico pra
+    usuária — é exatamente o crash de sessão expirada que motivou isso."""
+    try:
+        return construir_query()
+    except APIError as erro:
+        if not _sessao_expirou(erro):
+            raise
+        try:
+            nova_sessao = _renovar_sessao(st.session_state.pp_refresh_token)
+        except Exception:
+            _forcar_novo_login()
+            return
+        st.session_state.pp_access_token = nova_sessao.access_token
+        st.session_state.pp_refresh_token = nova_sessao.refresh_token
+        client.postgrest.auth(nova_sessao.access_token)
+        try:
+            return construir_query()
+        except APIError:
+            _forcar_novo_login()
+
+
 col_titulo, col_sair = st.columns([4, 1])
 with col_sair:
     if st.button("Sair"):
         st.session_state.pp_user = None
         st.session_state.pp_access_token = None
+        st.session_state.pp_refresh_token = None
         st.rerun()
 
 with st.expander("Configurações da conta"):
@@ -436,6 +499,7 @@ with st.expander("Configurações da conta"):
                 cliente_admin.auth.admin.delete_user(usuaria_id)
                 st.session_state.pp_user = None
                 st.session_state.pp_access_token = None
+                st.session_state.pp_refresh_token = None
                 st.success("Conta excluída. Até logo.")
                 st.rerun()
             except Exception:
@@ -451,9 +515,9 @@ if texto.strip():
 
 if st.button("Salvar entrada do dia"):
     if texto.strip():
-        client.table("entradas_diario").insert(
+        _executar_com_renovacao(lambda: client.table("entradas_diario").insert(
             {"usuaria_id": usuaria_id, "texto": texto.strip()}
-        ).execute()
+        ).execute())
         st.success("Entrada salva.")
         if "ANTHROPIC_API_KEY" in st.secrets:
             with st.spinner("Refletindo sobre o que você escreveu..."):
@@ -475,12 +539,12 @@ if st.session_state.pp_ultima_reflexao:
 st.markdown("---")
 st.markdown('<p class="titulo-produto" style="font-size:1.3rem;">Entradas anteriores</p>', unsafe_allow_html=True)
 
-resultado = (
+resultado = _executar_com_renovacao(lambda: (
     client.table("entradas_diario")
     .select("id,texto,criado_em")
     .order("criado_em", desc=True)
     .execute()
-)
+))
 
 if not resultado.data:
     st.caption("Nenhuma entrada ainda.")
@@ -505,13 +569,13 @@ else:
         if datetime.fromisoformat(e["criado_em"]) >= uma_semana_atras
     ]
 
-    capitulos_anteriores = (
-        client.table("capitulos_semanais").select("id", count="exact").execute()
+    capitulos_anteriores = _executar_com_renovacao(
+        lambda: client.table("capitulos_semanais").select("id", count="exact").execute()
     )
     total_capitulos_gerados = capitulos_anteriores.count or 0
 
-    assinatura = (
-        client.table("assinaturas").select("status").maybe_single().execute()
+    assinatura = _executar_com_renovacao(
+        lambda: client.table("assinaturas").select("status").maybe_single().execute()
     )
     esta_assinante = bool(
         assinatura and assinatura.data and assinatura.data.get("status") == "ativa"
@@ -546,9 +610,9 @@ else:
             with st.spinner("Lendo a semana..."):
                 try:
                     titulo_capitulo, corpo_capitulo = gerar_capitulo_semanal(entradas_da_semana)
-                    client.table("capitulos_semanais").insert(
+                    _executar_com_renovacao(lambda: client.table("capitulos_semanais").insert(
                         {"usuaria_id": usuaria_id, "titulo": titulo_capitulo, "corpo": corpo_capitulo}
-                    ).execute()
+                    ).execute())
                     st.markdown(
                         f'<p class="titulo-produto" style="font-size:1.5rem;">{titulo_capitulo}</p>',
                         unsafe_allow_html=True,
