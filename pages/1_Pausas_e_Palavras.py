@@ -115,17 +115,14 @@ def gerar_capitulo_semanal(entradas: list[dict]) -> tuple[str, str]:
     titulo, _, corpo = texto.strip().partition("\n")
     return titulo.strip(), corpo.strip()
 
+
+CAPITULOS_GRATUITOS_LIMITE = 2
+
 COR_FUNDO = "#FFFEFA"
 COR_PAINEL = "#FAF6EA"
 COR_VERDE_MUSGO = "#121509"
 COR_VERDE_MUSGO_HOVER = "#080A04"
-# Verde mais claro/saturado que #121509 (só para esta forma de fundo) —
-# a 20% de opacidade sobre o fundo creme, o musgo escuro (18,21,9) quase
-# não sobrevive ao blend e lê como cinza; este tom mantém a família
-# "musgo" mas permanece perceptível como verde no mesmo alpha.
-COR_MUSGO_VEIL = "rgba(60,150,90,0.20)"
 COR_ROSA_ACENTO = "#C6A9A0"
-COR_ROSA_VEIL = "rgba(198,169,160,0.20)"
 COR_TEXTO_CORPO = "#5A3E3E"
 COR_TEXTO_SECUNDARIO = "#8A6B64"
 
@@ -133,6 +130,18 @@ FONT_IMPORT_URL = (
     "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@"
     "0,9..144,300;0,9..144,400;0,9..144,500;1,9..144,400"
     "&family=Lora:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+)
+
+# Silhueta de folha real (oval alongada, afunilada numa ponta) em vez de
+# blob com border-radius. `currentColor` herda a cor definida em cada
+# `.folha--*`; a opacidade de cada parte (contorno vs. nervura) vem dos
+# atributos `opacity` do próprio SVG, não de rgba().
+FOLHA_SVG = (
+    '<svg viewBox="0 0 200 400" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M100,0 C160,60 190,160 170,260 C155,330 130,380 100,400 '
+    'C70,380 45,330 30,260 C10,160 40,60 100,0 Z" fill="currentColor" opacity="0.20" />'
+    '<path d="M100,20 L100,380" stroke="currentColor" stroke-width="1.5" opacity="0.15" />'
+    '</svg>'
 )
 
 st.set_page_config(page_title="Pausas e Palavras", page_icon="🌿", layout="centered")
@@ -146,30 +155,38 @@ st.markdown(
         background-color: {COR_FUNDO};
     }}
 
-    [data-testid="stAppViewContainer"]::before {{
-        content: "";
+    /* position:fixed (ancorada na janela) para ficar estável independente
+       da altura do conteúdo/rolagem. A folha musgo (lado direito) não
+       tem problema com isso. A folha rosa (lado esquerdo) precisa de um
+       "left" fixo que já pule a barra lateral do Streamlit — testado e
+       medido em ~300px de largura — porque a barra tem z-index altíssimo
+       (~999991) e cobre qualquer coisa posicionada contra a borda
+       esquerda da JANELA inteira, não só contra a área de conteúdo. */
+    .folha {{
         position: fixed;
-        top: -10%;
-        right: -10%;
-        width: 40vw;
-        height: 40vw;
-        background: {COR_MUSGO_VEIL};
-        border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
         z-index: 0;
         pointer-events: none;
     }}
-
-    [data-testid="stAppViewContainer"]::after {{
-        content: "";
-        position: fixed;
-        bottom: -15%;
-        left: -10%;
-        width: 35vw;
-        height: 35vw;
-        background: {COR_ROSA_VEIL};
-        border-radius: 40% 60% 70% 30% / 40% 70% 30% 60%;
-        z-index: 0;
-        pointer-events: none;
+    .folha svg {{
+        display: block;
+        width: 100%;
+        height: 100%;
+    }}
+    .folha--musgo {{
+        top: -4%;
+        right: -3%;
+        width: 15vw;
+        height: 30vw;
+        color: #3C9659;
+        transform: rotate(18deg);
+    }}
+    .folha--rosa {{
+        bottom: -5%;
+        left: 320px;
+        width: 12vw;
+        height: 24vw;
+        color: {COR_ROSA_ACENTO};
+        transform: rotate(-30deg);
     }}
 
     .block-container {{
@@ -229,6 +246,12 @@ st.markdown(
     }}
     </style>
     """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    f'<div class="folha folha--musgo">{FOLHA_SVG}</div>'
+    f'<div class="folha folha--rosa">{FOLHA_SVG}</div>',
     unsafe_allow_html=True,
 )
 
@@ -422,19 +445,55 @@ else:
         if datetime.fromisoformat(e["criado_em"]) >= uma_semana_atras
     ]
 
+    capitulos_anteriores = (
+        client.table("capitulos_semanais").select("id", count="exact").execute()
+    )
+    total_capitulos_gerados = capitulos_anteriores.count or 0
+
+    assinatura = (
+        client.table("assinaturas").select("ativa").maybe_single().execute()
+    )
+    esta_assinante = bool(assinatura and assinatura.data and assinatura.data.get("ativa"))
+
+    capitulos_gratuitos_restantes = max(0, CAPITULOS_GRATUITOS_LIMITE - total_capitulos_gerados)
+    bloqueado_por_assinatura = total_capitulos_gerados >= CAPITULOS_GRATUITOS_LIMITE and not esta_assinante
+
     if not entradas_da_semana:
         st.caption("Nenhuma entrada nos últimos 7 dias.")
-    elif st.button("Gerar capítulo da semana"):
-        with st.spinner("Lendo a semana..."):
-            try:
-                titulo_capitulo, corpo_capitulo = gerar_capitulo_semanal(entradas_da_semana)
-                st.markdown(
-                    f'<p class="titulo-produto" style="font-size:1.5rem;">{titulo_capitulo}</p>',
-                    unsafe_allow_html=True,
-                )
-                st.markdown(
-                    f'<div class="entrada-anterior">{corpo_capitulo}</div>',
-                    unsafe_allow_html=True,
-                )
-            except Exception:
-                st.error("Não foi possível gerar o capítulo agora. Tente novamente em instantes.")
+    elif bloqueado_por_assinatura:
+        st.markdown(
+            '<div class="entrada-anterior">Você já usou seus capítulos gratuitos. '
+            'Assine para continuar recebendo o capítulo da semana.</div>',
+            unsafe_allow_html=True,
+        )
+        col_real, col_euro = st.columns(2)
+        with col_real:
+            st.button("Pagar em Real — R$ 29,90/mês", use_container_width=True, key="pagar_real")
+        with col_euro:
+            st.button("Pagar em Euro — € 8,90/mês", use_container_width=True, key="pagar_euro")
+        st.caption("Pagamento ainda não processado de verdade — tela em construção.")
+    else:
+        if not esta_assinante:
+            st.caption(
+                f"{capitulos_gratuitos_restantes} capítulo"
+                f"{'s' if capitulos_gratuitos_restantes != 1 else ''} gratuito"
+                f"{'s' if capitulos_gratuitos_restantes != 1 else ''} restante"
+                f"{'s' if capitulos_gratuitos_restantes != 1 else ''}."
+            )
+        if st.button("Gerar capítulo da semana"):
+            with st.spinner("Lendo a semana..."):
+                try:
+                    titulo_capitulo, corpo_capitulo = gerar_capitulo_semanal(entradas_da_semana)
+                    client.table("capitulos_semanais").insert(
+                        {"usuaria_id": usuaria_id, "titulo": titulo_capitulo, "corpo": corpo_capitulo}
+                    ).execute()
+                    st.markdown(
+                        f'<p class="titulo-produto" style="font-size:1.5rem;">{titulo_capitulo}</p>',
+                        unsafe_allow_html=True,
+                    )
+                    st.markdown(
+                        f'<div class="entrada-anterior">{corpo_capitulo}</div>',
+                        unsafe_allow_html=True,
+                    )
+                except Exception:
+                    st.error("Não foi possível gerar o capítulo agora. Tente novamente em instantes.")
