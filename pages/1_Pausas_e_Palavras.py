@@ -225,6 +225,13 @@ st.markdown(
         font-weight: 500;
     }}
 
+    [data-testid="stExpander"] summary p {{
+        font-family: 'Fraunces', serif;
+        font-style: italic;
+        color: {COR_ROSA_ACENTO};
+        font-weight: 500;
+    }}
+
     p, span, div, label, textarea, input {{
         font-family: 'Lora', serif;
     }}
@@ -463,6 +470,20 @@ def _executar_com_renovacao(construir_query):
         except APIError:
             _forcar_novo_login()
 
+
+with st.expander("O que é o Pausas e Palavras"):
+    st.markdown(
+        """
+        <p>Este é um espaço de escrita livre. Escreva sobre o seu dia, sem
+        preocupação com forma ou tamanho.</p>
+        <p>A cada entrada, você recebe uma reflexão breve sobre o que
+        escreveu. Ao final da semana, suas entradas se transformam em um
+        capítulo da sua própria história.</p>
+        <p>Este espaço é uma ferramenta de autorreflexão e não substitui
+        acompanhamento psicológico ou psiquiátrico profissional.</p>
+        """,
+        unsafe_allow_html=True,
+    )
 
 col_titulo, col_sair = st.columns([4, 1])
 with col_sair:
