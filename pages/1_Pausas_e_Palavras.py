@@ -1,11 +1,21 @@
 import json
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
 from urllib.parse import urlencode
 
 import anthropic
 import streamlit as st
 import streamlit.components.v1 as components
 from postgrest.exceptions import APIError
+from reportlab.lib.colors import HexColor
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.pagesizes import A5
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer
 from supabase import Client, ClientOptions, create_client
 
 SYSTEM_PROMPT_CAPITULO_SEMANAL = """\
@@ -57,6 +67,63 @@ principal.
 - Freud só pode aparecer como nota pontual e explícita, quando um conceito \
 específico dele for diretamente aplicável (ex: mecanismo de defesa) — nunca \
 como estrutura geral do capítulo.
+"""
+
+
+SYSTEM_PROMPT_RELATORIO_MENSAL = """\
+Você escreve o "relatório do mês" do Pausas e Palavras — uma síntese mais \
+ampla e elaborada que o capítulo semanal, que costura os capítulos \
+semanais já gerados ao longo do mês num único relatório, em formato de \
+pequeno livro. Você recebe os capítulos semanais do mês (cada um já é \
+uma leitura junguiana/frankliana daquela semana) e escreve, a partir \
+deles, uma análise de autorreflexão sobre o mês inteiro.
+
+Escreva em português. A resposta deve seguir esta forma exata:
+
+- A PRIMEIRA LINHA é somente o título do relatório — estilo título de \
+livro ou capítulo de livro pessoal, nascido do que atravessou o mês \
+inteiro. Sem aspas, sem numeração, sem a palavra "Título".
+- Uma linha em branco depois do título.
+- Em seguida, o corpo do relatório, em texto corrido, SEM rótulos ou \
+números de seção (nunca escreva "Padrão do mês:", "Sentido:", "Fecho:" \
+ou qualquer cabeçalho técnico) — a estrutura abaixo deve estar presente \
+na progressão do texto, não marcada visualmente:
+
+1. Uma abertura breve que situa o leitor: isto é uma análise de \
+autorreflexão, embasada em referências consagradas da psicologia (Jung \
+e Frankl), escrita a partir do que ela mesma escreveu ao longo do mês \
+— não um diagnóstico nem uma avaliação clínica.
+2. Arco do mês, na segunda pessoa ("você"): como as semanas se conectam, \
+o que se manteve e o que mudou — nunca como lista semana a semana.
+3. Padrão do mês (lente junguiana: sombra, persona, arquétipo, \
+individuação, complexo) — o que atravessou o mês inteiro, mais amplo do \
+que qualquer padrão semanal isolado. Linguagem descritiva, nunca "isso \
+indica Y".
+4. Sentido do mês (lente frankliana, logoterapia): para onde esse mês \
+aponta, sempre como pergunta ou direção, nunca como solução pronta.
+5. Fecho: frase de fechamento que convide a guardar esse mês como \
+capítulo da história dela.
+
+Termine sempre, como último parágrafo, com exatamente esta frase: "Este \
+relatório é uma análise de autorreflexão embasada em referências \
+consagradas da psicologia — como Jung e Frankl — e não substitui \
+avaliação, diagnóstico ou acompanhamento de um especialista médico ou \
+psicológico."
+
+Proibido em qualquer parte do texto:
+- Termos clínicos ou de diagnóstico (transtorno, sintoma, quadro de, \
+patologia, laudo, CID, ou termos equivalentes)
+- Conceitos junguianos de fase tardia (alquimia, sincronicidade, simbolismo \
+esotérico)
+- Qualquer frase que soe como avaliação profissional real
+
+Referência teórica permitida:
+- Jung (sombra, persona, arquétipo, individuação, complexo) é a base \
+principal.
+- Frankl (logoterapia, busca de sentido) é a camada de propósito.
+- Freud só pode aparecer como nota pontual e explícita, quando um conceito \
+específico dele for diretamente aplicável — nunca como estrutura geral \
+do relatório.
 """
 
 
@@ -186,6 +253,31 @@ def gerar_capitulo_semanal(entradas: list[dict]) -> tuple[str, str]:
     return titulo.strip(), corpo.strip()
 
 
+def gerar_relatorio_mensal(capitulos: list[dict]) -> tuple[str, str]:
+    """Retorna (titulo, corpo) do relatório do mês, a partir dos capítulos
+    semanais já gerados naquele mês (não relê as entradas diárias brutas)."""
+    corpo_capitulos = "\n\n".join(
+        f"[Semana de {datetime.fromisoformat(c['criado_em']).strftime('%d/%m/%Y')}] "
+        f"{c['titulo']}\n{c['corpo']}"
+        for c in capitulos
+    )
+    if _contem_sinal_de_risco(corpo_capitulos):
+        return "Antes de qualquer coisa", MENSAGEM_RISCO
+    cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+    resposta = cliente_anthropic.messages.create(
+        model="claude-sonnet-5",
+        max_tokens=4096,
+        thinking={"type": "adaptive"},
+        system=SYSTEM_PROMPT_RELATORIO_MENSAL,
+        messages=[{"role": "user", "content": f"Capítulos semanais do mês:\n\n{corpo_capitulos}"}],
+    )
+    if resposta.stop_reason == "refusal":
+        raise RuntimeError("O modelo não conseguiu gerar o relatório desta vez.")
+    texto = next(bloco.text for bloco in resposta.content if bloco.type == "text")
+    titulo, _, corpo = texto.strip().partition("\n")
+    return titulo.strip(), corpo.strip()
+
+
 CAPITULOS_GRATUITOS_LIMITE = 2
 
 COR_FUNDO = "#FFFEFA"
@@ -195,6 +287,96 @@ COR_VERDE_MUSGO_HOVER = "#080A04"
 COR_ROSA_ACENTO = "#C6A9A0"
 COR_TEXTO_CORPO = "#5A3E3E"
 COR_TEXTO_SECUNDARIO = "#8A6B64"
+
+MESES_PT = [
+    "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+    "julho", "agosto", "setembro", "outubro", "novembro", "dezembro",
+]
+
+DIRETORIO_FONTES_PDF = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+
+
+@st.cache_resource
+def _registrar_fontes_pdf() -> bool:
+    """Registra as fontes da identidade visual (Fraunces/Lora, baixadas do
+    Google Fonts e commitadas em assets/fonts/) no reportlab, uma única vez
+    por processo. Sem isso o PDF cairia numa fonte genérica do sistema."""
+    pdfmetrics.registerFont(
+        TTFont("Fraunces-Italic", str(DIRETORIO_FONTES_PDF / "Fraunces-Italic.ttf"))
+    )
+    pdfmetrics.registerFont(TTFont("Lora", str(DIRETORIO_FONTES_PDF / "Lora-Regular.ttf")))
+    pdfmetrics.registerFont(
+        TTFont("Lora-Italic", str(DIRETORIO_FONTES_PDF / "Lora-Italic.ttf"))
+    )
+    return True
+
+
+def _fundo_pagina_pdf(canvas, doc):
+    canvas.saveState()
+    canvas.setFillColor(HexColor(COR_FUNDO))
+    canvas.rect(0, 0, doc.pagesize[0], doc.pagesize[1], stroke=0, fill=1)
+    canvas.restoreState()
+
+
+def gerar_pdf_relatorio_mensal(titulo: str, corpo: str, mes: int, ano: int) -> bytes:
+    """Monta o relatório do mês como PDF, com a tipografia da identidade
+    visual (Fraunces itálico pro título, Lora pro corpo) embutida no
+    arquivo — não depende de fonte instalada em quem for abrir."""
+    _registrar_fontes_pdf()
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A5,
+        topMargin=2.2 * cm,
+        bottomMargin=2.2 * cm,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+    )
+
+    estilo_titulo_capa = ParagraphStyle(
+        "TituloCapa", fontName="Fraunces-Italic", fontSize=26, leading=32,
+        textColor=HexColor(COR_ROSA_ACENTO), alignment=TA_CENTER,
+    )
+    estilo_subtitulo_capa = ParagraphStyle(
+        "SubtituloCapa", fontName="Fraunces-Italic", fontSize=13, leading=18,
+        textColor=HexColor(COR_ROSA_ACENTO), alignment=TA_CENTER,
+    )
+    estilo_mes_capa = ParagraphStyle(
+        "MesCapa", fontName="Lora-Italic", fontSize=11, leading=16,
+        textColor=HexColor(COR_TEXTO_SECUNDARIO), alignment=TA_CENTER,
+    )
+    estilo_corpo = ParagraphStyle(
+        "Corpo", fontName="Lora", fontSize=10.5, leading=17,
+        textColor=HexColor(COR_TEXTO_CORPO), alignment=TA_JUSTIFY,
+        spaceAfter=12,
+    )
+    estilo_disclaimer = ParagraphStyle(
+        "Disclaimer", fontName="Lora-Italic", fontSize=8.5, leading=13,
+        textColor=HexColor(COR_TEXTO_SECUNDARIO), alignment=TA_JUSTIFY,
+        spaceBefore=18,
+    )
+
+    story = [
+        Spacer(1, 6 * cm),
+        Paragraph(titulo, estilo_titulo_capa),
+        Spacer(1, 1 * cm),
+        Paragraph("Pausas e Palavras", estilo_subtitulo_capa),
+        Paragraph(f"{MESES_PT[mes - 1].capitalize()} de {ano}", estilo_mes_capa),
+        PageBreak(),
+    ]
+
+    paragrafos = [p.strip() for p in corpo.split("\n\n") if p.strip()]
+    # O último parágrafo é sempre o disclaimer (frase fixa exigida no
+    # system prompt) — renderiza separado, em itálico e menor.
+    corpo_paragrafos, disclaimer = paragrafos[:-1], paragrafos[-1]
+    for paragrafo in corpo_paragrafos:
+        story.append(Paragraph(paragrafo, estilo_corpo))
+    story.append(Paragraph(disclaimer, estilo_disclaimer))
+
+    doc.build(story, onFirstPage=_fundo_pagina_pdf, onLaterPages=_fundo_pagina_pdf)
+    return buffer.getvalue()
+
 
 FONT_IMPORT_URL = (
     "https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@"
@@ -478,7 +660,9 @@ with st.expander("O que é o Pausas e Palavras"):
         preocupação com forma ou tamanho.</p>
         <p>A cada entrada, você recebe uma reflexão breve sobre o que
         escreveu. Ao final da semana, suas entradas se transformam em um
-        capítulo da sua própria história.</p>
+        capítulo da sua própria história — uma leitura inspirada nas
+        ideias de Carl Jung sobre autoconhecimento e nas de Viktor Frankl
+        sobre encontrar sentido, mesmo nos dias mais difíceis.</p>
         <p>Este espaço é uma ferramenta de autorreflexão e não substitui
         acompanhamento psicológico ou psiquiátrico profissional.</p>
         """,
@@ -644,3 +828,52 @@ else:
                     )
                 except Exception:
                     st.error("Não foi possível gerar o capítulo agora. Tente novamente em instantes.")
+
+st.markdown("---")
+st.markdown('<p class="titulo-produto" style="font-size:1.3rem;">Relatório do mês</p>', unsafe_allow_html=True)
+
+MINIMO_CAPITULOS_RELATORIO_MENSAL = 2
+
+if "ANTHROPIC_API_KEY" not in st.secrets:
+    st.caption("Configuração de IA ausente. Preencha ANTHROPIC_API_KEY em .streamlit/secrets.toml.")
+elif bloqueado_por_assinatura:
+    st.caption("O relatório do mês está incluído na mesma assinatura do capítulo semanal.")
+else:
+    agora = datetime.now(timezone.utc)
+    inicio_mes = agora.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    capitulos_do_mes_resultado = _executar_com_renovacao(
+        lambda: client.table("capitulos_semanais")
+        .select("id,titulo,corpo,criado_em")
+        .gte("criado_em", inicio_mes.isoformat())
+        .order("criado_em")
+        .execute()
+    )
+    capitulos_do_mes = capitulos_do_mes_resultado.data or []
+
+    if len(capitulos_do_mes) < MINIMO_CAPITULOS_RELATORIO_MENSAL:
+        st.caption(
+            f"Ainda não há capítulos semanais suficientes neste mês "
+            f"(mínimo {MINIMO_CAPITULOS_RELATORIO_MENSAL}). Volte depois de "
+            f"mais algumas semanas escrevendo."
+        )
+    else:
+        st.caption(
+            f"{len(capitulos_do_mes)} capítulos semanais disponíveis "
+            f"este mês."
+        )
+        if st.button("Gerar relatório do mês em PDF"):
+            with st.spinner("Lendo o mês inteiro..."):
+                try:
+                    titulo_relatorio, corpo_relatorio = gerar_relatorio_mensal(capitulos_do_mes)
+                    pdf_bytes = gerar_pdf_relatorio_mensal(
+                        titulo_relatorio, corpo_relatorio, agora.month, agora.year
+                    )
+                    st.success("Relatório pronto.")
+                    st.download_button(
+                        "Baixar relatório do mês (PDF)",
+                        data=pdf_bytes,
+                        file_name=f"pausas-e-palavras-relatorio-{agora.year}-{agora.month:02d}.pdf",
+                        mime="application/pdf",
+                    )
+                except Exception:
+                    st.error("Não foi possível gerar o relatório agora. Tente novamente em instantes.")
