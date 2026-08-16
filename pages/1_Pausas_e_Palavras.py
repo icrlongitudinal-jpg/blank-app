@@ -184,8 +184,15 @@ def _contem_sinal_de_risco(texto: str) -> bool:
       é o ponto único dessa checagem — chamada por gerar_reflexao_entrada
       e por gerar_capitulo_semanal.
     - Classificador retorna RISCO ou SEGURO.
-    - Em caso de falha do classificador (erro de API, rede etc), o sistema
-      trata como RISCO por padrão — nunca deixa passar sem checagem.
+    - QUALQUER exceção na chamada da API (rede, timeout, erro HTTP,
+      resposta malformada, recusa do modelo — sem distinguir tipo) é
+      capturada por um try/except amplo e tratada como RISCO. Só cai em
+      SEGURO quando a API responde normalmente E o classificador diz
+      explicitamente "SEGURO" (correção de 2026-08-16: antes só o
+      stop_reason "refusal" caía em RISCO — uma falha de rede, por
+      exemplo, subia sem tratamento até a página, que mostrava "não foi
+      possível gerar a reflexão desta vez" em vez da mensagem de crise.
+      Nunca mais deixar passar sem checagem por falha técnica).
     - Se RISCO: não chama a IA para gerar reflexão. Retorna mensagem fixa,
       pré-escrita, sem geração de conteúdo novo nesse momento.
     - Mensagem fixa cobre Brasil (CVV, 188, cvv.org.br) e Portugal (Linha
@@ -196,22 +203,28 @@ def _contem_sinal_de_risco(texto: str) -> bool:
       apoio — decisão deliberada de privacidade.
     - Se SEGURO: segue o fluxo normal de reflexão.
     """
-    cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
-    resposta = cliente_anthropic.messages.create(
-        model="claude-sonnet-5",
-        max_tokens=8,
-        thinking={"type": "disabled"},
-        system=SYSTEM_PROMPT_VERIFICACAO_RISCO,
-        messages=[{"role": "user", "content": texto}],
-    )
-    if resposta.stop_reason == "refusal":
-        # Checagem de segurança falhou: trata como risco (conservador) em vez
-        # de deixar passar para a reflexão poética sem verificação.
+    try:
+        cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
+        resposta = cliente_anthropic.messages.create(
+            model="claude-sonnet-5",
+            max_tokens=8,
+            thinking={"type": "disabled"},
+            system=SYSTEM_PROMPT_VERIFICACAO_RISCO,
+            messages=[{"role": "user", "content": texto}],
+        )
+        if resposta.stop_reason == "refusal":
+            # Checagem de segurança falhou: trata como risco (conservador) em
+            # vez de deixar passar para a reflexão poética sem verificação.
+            return True
+        texto_resposta = next(
+            (bloco.text for bloco in resposta.content if bloco.type == "text"), ""
+        )
+        return "RISCO" in texto_resposta.upper()
+    except Exception:
+        # Qualquer falha na chamada (rede, timeout, erro da API, resposta
+        # malformada) é tratada como risco — conservador por padrão, nunca
+        # deixa passar sem checagem por causa de um problema técnico.
         return True
-    texto_resposta = next(
-        (bloco.text for bloco in resposta.content if bloco.type == "text"), ""
-    )
-    return "RISCO" in texto_resposta.upper()
 
 
 def gerar_reflexao_entrada(texto: str) -> str:
