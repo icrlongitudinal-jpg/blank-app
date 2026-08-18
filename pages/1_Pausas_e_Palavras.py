@@ -473,14 +473,35 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-@st.cache_resource
 def get_base_client() -> Client | None:
-    try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_ANON_KEY"]
-    except (FileNotFoundError, KeyError):
-        return None
-    return create_client(url, key, options=ClientOptions(flow_type="implicit"))
+    """Cliente Supabase (anon key), isolado por sessão de navegador via
+    st.session_state — NÃO usar st.cache_resource aqui.
+
+    Mais abaixo, o client é mutado com o access_token da usuária logada
+    (client.postgrest.auth(...) sobrescreve o header Authorization do
+    client em si, não uma cópia). st.cache_resource cacheia por
+    PROCESSO, compartilhado entre TODAS as sessões concorrentes — em
+    produção (Streamlit Cloud), múltiplas usuárias rodam no mesmo
+    processo ao mesmo tempo. Um client cacheado por processo faria o
+    header de autenticação de uma usuária sobrescrever o de outra
+    sempre que as duas tivessem uma chamada em andamento ao mesmo
+    tempo — uma usuária podia acabar recebendo dados de outra numa
+    corrida entre threads (correção de 2026-08-18, mesma falha
+    encontrada e corrigida no Casa da Maria). st.session_state é por
+    sessão de navegador — nunca compartilhado entre usuárias — então
+    cada uma tem seu próprio client, sem essa corrida.
+    """
+    if "pp_base_client" not in st.session_state:
+        try:
+            url = st.secrets["SUPABASE_URL"]
+            key = st.secrets["SUPABASE_ANON_KEY"]
+        except (FileNotFoundError, KeyError):
+            st.session_state.pp_base_client = None
+        else:
+            st.session_state.pp_base_client = create_client(
+                url, key, options=ClientOptions(flow_type="implicit")
+            )
+    return st.session_state.pp_base_client
 
 
 def google_oauth_url(app_url: str) -> str:
@@ -609,8 +630,8 @@ if not st.session_state.pp_user:
                     st.error(f"Não foi possível criar a conta: {erro}")
     st.stop()
 
-# Cliente autenticado como a usuária logada, isolado nesta sessão de navegador
-# (não usar st.cache_resource aqui — vazaria o token entre usuárias).
+# base_client já é isolado por sessão (get_base_client, acima) — seguro
+# mutar o header de auth aqui, não afeta outras usuárias.
 client = base_client
 client.postgrest.auth(st.session_state.pp_access_token)
 usuaria_id = st.session_state.pp_user.id
