@@ -473,14 +473,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-@st.cache_resource
+
 def get_base_client() -> Client | None:
-    try:
-        url = st.secrets["SUPABASE_URL"]
-        key = st.secrets["SUPABASE_ANON_KEY"]
-    except (FileNotFoundError, KeyError):
-        return None
-    return create_client(url, key, options=ClientOptions(flow_type="implicit"))
+    if "pp_base_client" not in st.session_state:
+        try:
+            url = st.secrets["SUPABASE_URL"]
+            key = st.secrets["SUPABASE_ANON_KEY"]
+        except (FileNotFoundError, KeyError):
+            st.session_state.pp_base_client = None
+        else:
+            st.session_state.pp_base_client = create_client(
+                url, key, options=ClientOptions(flow_type="implicit")
+            )
+    return st.session_state.pp_base_client
 
 
 def google_oauth_url(app_url: str) -> str:
