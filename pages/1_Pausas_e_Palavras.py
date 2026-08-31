@@ -149,12 +149,24 @@ substitui acompanhamento psicológico ou psiquiátrico profissional."
 """
 
 
-SYSTEM_PROMPT_VERIFICACAO_RISCO = """\
-Analise o texto abaixo e responda APENAS "RISCO" ou "SEGURO". Considere \
-RISCO se houver menção a desejo de morrer, ideação suicida, plano de \
-autolesão, ou desespero que sugira perigo imediato à integridade física da \
-pessoa. Não explique, não pontue, não repita o texto — responda só com a \
-palavra."""
+SYSTEM_PROMPT_VERIFICACAO_RISCO = """Você é um classificador de risco. Analise o texto e responda APENAS com uma palavra: RISCO ou SEGURO.
+
+Responda RISCO somente se o texto contiver afirmação explícita e em primeira pessoa de:
+- vontade de morrer
+- intenção de se matar ou tirar a própria vida
+- intenção de se machucar ou praticar autolesão
+- plano ou método para se machucar
+
+Responda SEGURO em todos os outros casos, incluindo:
+- dor, tristeza, luto, raiva, desespero, mesmo que intensos
+- ruptura familiar ou relacional
+- sofrimento antigo ou trauma já vivido
+- relato reflexivo ou narrativo sem intenção declarada
+- linguagem metafórica ou vaga
+- quando a pessoa diz que está bem, lúcida, estável ou em acompanhamento profissional
+- recuperação, relato do dia, desabafo sem intenção de se machucar
+
+Se não houver afirmação explícita de intenção de se machucar ou morrer, responda SEGURO."""
 
 # Cada bloco fechado em seu próprio <p> — a renderização de
 # `.entrada-anterior` (via st.markdown com unsafe_allow_html=True) envolve
@@ -747,7 +759,14 @@ with st.expander("Configurações da conta"):
                     "novamente em instantes."
                 )
 
-texto = st.text_area("Escreva livremente sobre o seu dia", height=220, key="texto_entrada")
+if "entrada_key_version" not in st.session_state:
+    st.session_state.entrada_key_version = 0
+
+texto = st.text_area(
+    "Escreva livremente sobre o seu dia",
+    height=220,
+    key=f"entrada_texto_{st.session_state.entrada_key_version}"
+)
 if texto.strip():
     n_palavras = len(texto.split())
     st.caption(f"{n_palavras} palavra{'s' if n_palavras != 1 else ''}")
@@ -765,6 +784,7 @@ if st.button("Salvar entrada do dia"):
                 except Exception:
                     st.session_state.pp_ultima_reflexao = None
                     st.warning("Não foi possível gerar a reflexão desta vez.")
+        st.session_state.entrada_key_version += 1
         st.rerun()
     else:
         st.warning("Escreva algo antes de salvar.")
