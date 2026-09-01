@@ -185,9 +185,26 @@ MENSAGEM_RISCO = (
     "<p>Você não está sozinha nisso.</p>"
 )
 
+# Mensagem fixa de acolhimento — exibida sempre, antes da reflexão diária.
+# Substitui o antigo gate condicional pelo classificador de risco no fluxo
+# de salvamento de entrada.
+MENSAGEM_ACOLHIMENTO = (
+    "<p>Obrigada por compartilhar isso aqui. Antes de continuar, quero "
+    "lembrar que você não precisa carregar nada sozinha — se em algum "
+    "momento sentir que precisa de apoio, esses canais estão disponíveis:</p>"
+    "<p>No Brasil: CVV 188 (gratuito, 24h) ou cvv.org.br<br>"
+    "Em Portugal: Linha Nacional de Prevenção do Suicídio 1411 "
+    "(gratuita, 24h)</p>"
+)
+
 
 def _contem_sinal_de_risco(texto: str) -> bool:
     """
+    NOTA (2026-09-01): mantida no código mas NÃO é mais chamada no fluxo de
+    salvamento de entrada / reflexão diária — substituída por uma mensagem
+    fixa de acolhimento (MENSAGEM_ACOLHIMENTO), exibida sempre. Ainda
+    referenciada por gerar_capitulo_semanal e gerar_relatorio_mensal.
+
     CAMADA DE DETECÇÃO DE CRISE — especificação final aprovada em 2026-08-12
 
     Comportamento:
@@ -230,7 +247,6 @@ def _contem_sinal_de_risco(texto: str) -> bool:
         texto_resposta = next(
             (bloco.text for bloco in resposta.content if bloco.type == "text"), ""
         )
-        st.info(f"DEBUG classificador: '{texto_resposta}'")
         return texto_resposta.strip().upper().startswith("RISCO")
     except Exception as e:
         # Qualquer falha na chamada (rede, timeout, erro da API, resposta
@@ -241,8 +257,6 @@ def _contem_sinal_de_risco(texto: str) -> bool:
 
 
 def gerar_reflexao_entrada(texto: str) -> str:
-    if _contem_sinal_de_risco(texto):
-        return MENSAGEM_RISCO
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
         model="claude-sonnet-4-6",
@@ -791,6 +805,10 @@ if st.button("Salvar entrada do dia"):
         st.warning("Escreva algo antes de salvar.")
 
 if st.session_state.pp_ultima_reflexao:
+    st.markdown(
+        f'<div class="entrada-anterior">{MENSAGEM_ACOLHIMENTO}</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown(
         f'<div class="entrada-anterior">{st.session_state.pp_ultima_reflexao}</div>',
         unsafe_allow_html=True,
