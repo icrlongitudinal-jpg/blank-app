@@ -1,0 +1,36 @@
+name: Keep Pausas e Palavras Awake
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # a cada 6 horas
+  workflow_dispatch:
+
+jobs:
+  wake-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Playwright
+        run: pip install playwright && playwright install chromium
+
+      - name: Visit app
+        run: |
+          python3 - <<'EOF'
+          import asyncio
+          from playwright.async_api import async_playwright
+
+          async def wake():
+              async with async_playwright() as p:
+                  browser = await p.chromium.launch()
+                  page = await browser.new_page()
+                  await page.goto("https://pausasepalavras-icr-app.streamlit.app/", timeout=60000)
+                  try:
+                      btn = page.locator("text=Yes, get this app back up!")
+                      if await btn.is_visible(timeout=5000):
+                          await btn.click()
+                          await page.wait_for_timeout(15000)
+                  except:
+                      pass
+                  await browser.close()
+
+          asyncio.run(wake())
+          EOF
