@@ -814,10 +814,7 @@ if st.session_state.pp_ultima_reflexao:
         unsafe_allow_html=True,
     )
 elif st.session_state.pp_erro_reflexao:
-    st.warning(
-        "Não foi possível gerar a reflexão desta vez. "
-        f"(debug: {st.session_state.pp_erro_reflexao})"
-    )
+    st.warning("Não foi possível gerar a reflexão desta vez.")
 
 st.markdown("---")
 st.markdown('<p class="titulo-produto" style="font-size:1.3rem;">Entradas anteriores</p>', unsafe_allow_html=True)
