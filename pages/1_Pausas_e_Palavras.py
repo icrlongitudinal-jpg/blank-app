@@ -261,7 +261,6 @@ def gerar_reflexao_entrada(texto: str) -> str:
     resposta = cliente_anthropic.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2048,
-        thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT_REFLEXAO_ENTRADA,
         messages=[{"role": "user", "content": texto}],
     )
@@ -282,7 +281,6 @@ def gerar_capitulo_semanal(entradas: list[dict]) -> tuple[str, str]:
     resposta = cliente_anthropic.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
-        thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT_CAPITULO_SEMANAL,
         messages=[{"role": "user", "content": f"Entradas da semana:\n\n{corpo_entradas}"}],
     )
@@ -307,7 +305,6 @@ def gerar_relatorio_mensal(capitulos: list[dict]) -> tuple[str, str]:
     resposta = cliente_anthropic.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
-        thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT_RELATORIO_MENSAL,
         messages=[{"role": "user", "content": f"Capítulos semanais do mês:\n\n{corpo_capitulos}"}],
     )
