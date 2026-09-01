@@ -248,11 +248,10 @@ def _contem_sinal_de_risco(texto: str) -> bool:
             (bloco.text for bloco in resposta.content if bloco.type == "text"), ""
         )
         return texto_resposta.strip().upper().startswith("RISCO")
-    except Exception as e:
+    except Exception:
         # Qualquer falha na chamada (rede, timeout, erro da API, resposta
         # malformada) é tratada como risco — conservador por padrão, nunca
         # deixa passar sem checagem por causa de um problema técnico.
-        st.warning(f"Erro no classificador: {repr(e)}")
         return True
 
 
