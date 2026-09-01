@@ -566,6 +566,8 @@ if "pp_user" not in st.session_state:
     st.session_state.pp_refresh_token = None
 if "pp_ultima_reflexao" not in st.session_state:
     st.session_state.pp_ultima_reflexao = None
+if "pp_erro_reflexao" not in st.session_state:
+    st.session_state.pp_erro_reflexao = None
 if "pp_mensagem_sessao_expirada" not in st.session_state:
     st.session_state.pp_mensagem_sessao_expirada = False
 
@@ -789,26 +791,33 @@ if st.button("Salvar entrada do dia"):
             {"usuaria_id": usuaria_id, "texto": texto.strip()}
         ).execute())
         st.success("Entrada salva.")
+        st.session_state.pp_ultima_reflexao = None
+        st.session_state.pp_erro_reflexao = None
         if "ANTHROPIC_API_KEY" in st.secrets:
             with st.spinner("Refletindo sobre o que você escreveu..."):
                 try:
                     st.session_state.pp_ultima_reflexao = gerar_reflexao_entrada(texto.strip())
-                except Exception:
-                    st.session_state.pp_ultima_reflexao = None
-                    st.warning("Não foi possível gerar a reflexão desta vez.")
+                except Exception as e:
+                    st.session_state.pp_erro_reflexao = repr(e)
         st.session_state.entrada_key_version += 1
         st.rerun()
     else:
         st.warning("Escreva algo antes de salvar.")
 
-if st.session_state.pp_ultima_reflexao:
+if st.session_state.pp_ultima_reflexao or st.session_state.pp_erro_reflexao:
     st.markdown(
         f'<div class="entrada-anterior">{MENSAGEM_ACOLHIMENTO}</div>',
         unsafe_allow_html=True,
     )
+if st.session_state.pp_ultima_reflexao:
     st.markdown(
         f'<div class="entrada-anterior">{st.session_state.pp_ultima_reflexao}</div>',
         unsafe_allow_html=True,
+    )
+elif st.session_state.pp_erro_reflexao:
+    st.warning(
+        "Não foi possível gerar a reflexão desta vez. "
+        f"(debug: {st.session_state.pp_erro_reflexao})"
     )
 
 st.markdown("---")
