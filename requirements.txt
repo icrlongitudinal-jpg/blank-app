@@ -1,4 +1,4 @@
 streamlit==1.61.1
 supabase
-anthropic
+anthropic>=0.115.0
 reportlab

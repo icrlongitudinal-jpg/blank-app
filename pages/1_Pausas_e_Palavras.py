@@ -218,9 +218,8 @@ def _contem_sinal_de_risco(texto: str) -> bool:
     try:
         cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
         resposta = cliente_anthropic.messages.create(
-            model="claude-sonnet-5",
+            model="claude-sonnet-4-6",
             max_tokens=8,
-            thinking={"type": "disabled"},
             system=SYSTEM_PROMPT_VERIFICACAO_RISCO,
             messages=[{"role": "user", "content": texto}],
         )
@@ -232,10 +231,11 @@ def _contem_sinal_de_risco(texto: str) -> bool:
             (bloco.text for bloco in resposta.content if bloco.type == "text"), ""
         )
         return "RISCO" in texto_resposta.upper()
-    except Exception:
+    except Exception as e:
         # Qualquer falha na chamada (rede, timeout, erro da API, resposta
         # malformada) é tratada como risco — conservador por padrão, nunca
         # deixa passar sem checagem por causa de um problema técnico.
+        st.warning(f"Erro no classificador: {repr(e)}")
         return True
 
 
@@ -244,7 +244,7 @@ def gerar_reflexao_entrada(texto: str) -> str:
         return MENSAGEM_RISCO
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
-        model="claude-sonnet-5",
+        model="claude-sonnet-4-6",
         max_tokens=2048,
         thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT_REFLEXAO_ENTRADA,
@@ -265,7 +265,7 @@ def gerar_capitulo_semanal(entradas: list[dict]) -> tuple[str, str]:
         return "Antes de qualquer coisa", MENSAGEM_RISCO
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
-        model="claude-sonnet-5",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT_CAPITULO_SEMANAL,
@@ -290,7 +290,7 @@ def gerar_relatorio_mensal(capitulos: list[dict]) -> tuple[str, str]:
         return "Antes de qualquer coisa", MENSAGEM_RISCO
     cliente_anthropic = anthropic.Anthropic(api_key=st.secrets["ANTHROPIC_API_KEY"])
     resposta = cliente_anthropic.messages.create(
-        model="claude-sonnet-5",
+        model="claude-sonnet-4-6",
         max_tokens=4096,
         thinking={"type": "adaptive"},
         system=SYSTEM_PROMPT_RELATORIO_MENSAL,
