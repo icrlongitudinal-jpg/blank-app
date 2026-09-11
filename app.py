@@ -316,6 +316,8 @@ def gerar_relatorio_mensal(capitulos: list[dict]) -> tuple[str, str]:
 
 CAPITULOS_GRATUITOS_LIMITE = 2
 
+TRIAL_DIAS = 7
+
 COR_FUNDO = "#FFFEFA"
 COR_PAINEL = "#FAF6EA"
 COR_VERDE_MUSGO = "#121509"
@@ -711,6 +713,57 @@ def _executar_com_renovacao(construir_query):
             return construir_query()
         except APIError:
             _forcar_novo_login()
+
+
+def _verificar_trial() -> None:
+    """Garante que a usuária está dentro do teste gratuito de TRIAL_DIAS
+    dias, contado a partir do primeiro login dela (não uma data fixa de
+    calendário). No primeiro login (ainda sem linha em public.usuarias, ou
+    linha com data_primeiro_login nula), grava a data/hora atual. Nos
+    seguintes, bloqueia o acesso ao conteúdo do app (st.stop()) se o teste
+    já expirou."""
+    registro = _executar_com_renovacao(lambda: (
+        client.table("usuarias").select("data_primeiro_login").eq("id", usuaria_id).maybe_single().execute()
+    ))
+    data_primeiro_login_str = registro.data.get("data_primeiro_login") if registro and registro.data else None
+
+    if not data_primeiro_login_str:
+        agora = datetime.now(timezone.utc)
+        if registro and registro.data:
+            _executar_com_renovacao(lambda: (
+                client.table("usuarias")
+                .update({"data_primeiro_login": agora.isoformat()})
+                .eq("id", usuaria_id)
+                .execute()
+            ))
+        else:
+            _executar_com_renovacao(lambda: (
+                client.table("usuarias")
+                .insert({"id": usuaria_id, "data_primeiro_login": agora.isoformat()})
+                .execute()
+            ))
+        st.caption(f"Você tem {TRIAL_DIAS} dias de teste gratuito a partir de hoje.")
+        return
+
+    data_primeiro_login = datetime.fromisoformat(data_primeiro_login_str.replace("Z", "+00:00"))
+    tempo_de_uso = datetime.now(timezone.utc) - data_primeiro_login
+
+    if tempo_de_uso > timedelta(days=TRIAL_DIAS):
+        st.warning(
+            "Seu período de teste gratuito de 7 dias terminou. Para "
+            "continuar usando o Pausas e Palavras, entre em contato para "
+            "continuar."
+        )
+        st.stop()
+
+    dias_restantes = TRIAL_DIAS - tempo_de_uso.days
+    st.caption(
+        f"Restam {dias_restantes} dia{'s' if dias_restantes != 1 else ''} "
+        "do seu teste gratuito."
+    )
+
+
+_verificar_trial()
 
 
 with st.expander("O que é o Pausas e Palavras"):
